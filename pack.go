@@ -19,6 +19,13 @@ const OUT_DIR_PERMISSIONS = 0755
 type ImageMap map[image.Point][]image.Image
 type ImageChannel chan image.Image
 
+type Options struct {
+	inputDir  string
+	outputDir string
+	basename  string
+	padding   int
+}
+
 func check(e error) {
 	if e != nil {
 		panic(e)
@@ -72,7 +79,7 @@ func loadImages(inputDir string) ImageMap {
 	return images
 }
 
-func saveSpriteSheet(sheetWg *sync.WaitGroup, size image.Point, imageList []image.Image, outputDir string, basename string, padding int) {
+func saveSpriteSheet(sheetWg *sync.WaitGroup, size image.Point, imageList []image.Image, options Options) {
 	defer sheetWg.Done()
 
 	// Create initial output image
@@ -88,37 +95,37 @@ func saveSpriteSheet(sheetWg *sync.WaitGroup, size image.Point, imageList []imag
 	}
 
 	// Save output image
-	outPath := path.Join(outputDir, fmt.Sprintf("%s_%dx%d.png", basename, size.X, size.Y))
+	outPath := path.Join(options.outputDir, fmt.Sprintf("%s_%dx%d.png", options.basename, size.X, size.Y))
 	saveImage(outPath, outImage)
 }
 
-func saveSpriteSheets(images ImageMap, outputDir string, basename string, padding int) {
+func saveSpriteSheets(images ImageMap, options Options) {
 	// Make sure output directory exists
-	os.MkdirAll(outputDir, OUT_DIR_PERMISSIONS)
+	os.MkdirAll(options.outputDir, OUT_DIR_PERMISSIONS)
 
 	// Save sheets in parallel
 	sheetWg := sync.WaitGroup{}
 	sheetWg.Add(len(images))
 	for size, imageList := range images {
-		go saveSpriteSheet(&sheetWg, size, imageList, outputDir, basename, padding)
+		go saveSpriteSheet(&sheetWg, size, imageList, options)
 	}
 	sheetWg.Wait()
 }
 
 func main() {
-	// TODO: Store in options object
 	// Register and parse command flags
-	inputDir := flag.String("in", "images", "Input directory path")
-	outputDir := flag.String("out", "images_out", "Output directory path")
-	basename := flag.String("name", "textures", "Basename to use for output filenames")
-	padding := flag.Int("padding", 8, "Number of pixels to repeat around sprite edges (0 to disable)")
+	options := Options{}
+	flag.StringVar(&options.inputDir, "in", "images", "Input directory path")
+	flag.StringVar(&options.outputDir, "out", "images_out", "Output directory path")
+	flag.StringVar(&options.basename, "name", "textures", "Basename to use for output filenames")
+	flag.IntVar(&options.padding, "padding", 8, "Number of pixels to repeat around sprite edges (0 to disable)")
 	flag.Parse()
 
 	// Load images into map grouped by size
-	images := loadImages(*inputDir)
+	images := loadImages(options.inputDir)
 
 	// Write output images, one for each size
-	saveSpriteSheets(images, *outputDir, *basename, *padding)
+	saveSpriteSheets(images, options)
 
 	// Write output metadata in json (TODO: figure out pixi.js compatibility)
 }
