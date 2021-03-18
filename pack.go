@@ -97,7 +97,7 @@ func saveSpriteSheets(images ImageMap, outputDir string, basename string, paddin
 	os.MkdirAll(outputDir, OUT_DIR_PERMISSIONS)
 
 	// Save sheets in parallel
-	var sheetWg sync.WaitGroup
+	sheetWg := sync.WaitGroup{}
 	sheetWg.Add(len(images))
 	for size, imageList := range images {
 		go saveSpriteSheet(&sheetWg, size, imageList, outputDir, basename, padding)
