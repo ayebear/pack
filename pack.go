@@ -4,8 +4,12 @@ import (
 	"flag"
 	"fmt"
 	"image"
+	"image/draw"
+	"image/png"
 	_ "image/png"
+	"math"
 	"os"
+	"path"
 	"path/filepath"
 )
 
@@ -18,13 +22,22 @@ func check(e error) {
 	}
 }
 
-func getImageFromFilePath(filePath string) image.Image {
+func loadImage(filePath string) image.Image {
 	f, err := os.Open(filePath)
 	check(err)
 	defer f.Close()
 	img, _, err := image.Decode(f)
 	check(err)
 	return img
+}
+
+func saveImage(filePath string, img image.Image) {
+	f, err := os.Create(filePath)
+	check(err)
+	err = png.Encode(f, img)
+	check(err)
+	err = f.Close()
+	check(err)
 }
 
 func loadImages(inputDir string) ImageMap {
@@ -40,7 +53,7 @@ func loadImages(inputDir string) ImageMap {
 		}
 		n++
 		go func() {
-			imageChannel <- getImageFromFilePath(p)
+			imageChannel <- loadImage(p)
 		}()
 		return nil
 	})
@@ -56,6 +69,29 @@ func loadImages(inputDir string) ImageMap {
 	return images
 }
 
+func saveImages(images ImageMap, outputDir string, basename string, padding int) {
+	// Make sure output directory exists
+	os.MkdirAll(outputDir, 0755)
+
+	for size, imageList := range images {
+		// Create initial output image
+		width := int(math.Ceil(math.Sqrt(float64(len(imageList)))))
+		outSize := image.Rect(0, 0, width*size.X, width*size.Y)
+		outImage := image.NewRGBA(outSize)
+
+		// Copy all images to correct locations in output
+		for i, img := range imageList {
+			x, y := i%width, i/width
+			target := image.Rect(x*size.X, y*size.Y, x*size.X+size.X, y*size.Y+size.Y)
+			draw.Draw(outImage, target, img, image.Point{0, 0}, draw.Src)
+		}
+
+		// Save output image
+		outPath := path.Join(outputDir, fmt.Sprintf("%s_%dx%d.png", basename, size.X, size.Y))
+		saveImage(outPath, outImage)
+	}
+}
+
 func main() {
 	// Register and parse command flags
 	inputDir := flag.String("in", "images", "Input directory path")
@@ -64,18 +100,11 @@ func main() {
 	padding := flag.Int("padding", 8, "Number of pixels to repeat around sprite edges (0 to disable)")
 	flag.Parse()
 
-	// TODO: Remove debug
-	fmt.Println("in:", *inputDir)
-	fmt.Println("out:", *outputDir)
-	fmt.Println("name:", *basename)
-	fmt.Println("padding:", *padding)
-
 	// Load images into map grouped by size
 	images := loadImages(*inputDir)
-	fmt.Println(images)
 
 	// Write output images, one for each size
-	// saveImages(&images)
+	saveImages(images, *outputDir, *basename, *padding)
 
 	// Write output metadata in json (TODO: figure out pixi.js compatibility)
 }
