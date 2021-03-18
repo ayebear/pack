@@ -11,6 +11,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"sync"
 )
 
 type ImageMap map[image.Point][]image.Image
@@ -69,30 +70,42 @@ func loadImages(inputDir string) ImageMap {
 	return images
 }
 
-func saveImages(images ImageMap, outputDir string, basename string, padding int) {
+func saveSpriteSheet(sheetWg *sync.WaitGroup, size image.Point, imageList []image.Image, outputDir string, basename string, padding int) {
+	defer sheetWg.Done()
+
+	// Create initial output image
+	width := int(math.Ceil(math.Sqrt(float64(len(imageList)))))
+	outSize := image.Rect(0, 0, width*size.X, width*size.Y)
+	outImage := image.NewRGBA(outSize)
+
+	// Copy all images to correct locations in output
+	for i, img := range imageList {
+		x, y := i%width, i/width
+		target := image.Rect(x*size.X, y*size.Y, x*size.X+size.X, y*size.Y+size.Y)
+		draw.Draw(outImage, target, img, image.Point{0, 0}, draw.Src)
+	}
+
+	// Save output image
+	outPath := path.Join(outputDir, fmt.Sprintf("%s_%dx%d.png", basename, size.X, size.Y))
+	saveImage(outPath, outImage)
+}
+
+func saveSpriteSheets(images ImageMap, outputDir string, basename string, padding int) {
 	// Make sure output directory exists
+	// TODO: Magic number
 	os.MkdirAll(outputDir, 0755)
 
+	// Save sheets in parallel
+	var sheetWg sync.WaitGroup
+	sheetWg.Add(len(images))
 	for size, imageList := range images {
-		// Create initial output image
-		width := int(math.Ceil(math.Sqrt(float64(len(imageList)))))
-		outSize := image.Rect(0, 0, width*size.X, width*size.Y)
-		outImage := image.NewRGBA(outSize)
-
-		// Copy all images to correct locations in output
-		for i, img := range imageList {
-			x, y := i%width, i/width
-			target := image.Rect(x*size.X, y*size.Y, x*size.X+size.X, y*size.Y+size.Y)
-			draw.Draw(outImage, target, img, image.Point{0, 0}, draw.Src)
-		}
-
-		// Save output image
-		outPath := path.Join(outputDir, fmt.Sprintf("%s_%dx%d.png", basename, size.X, size.Y))
-		saveImage(outPath, outImage)
+		go saveSpriteSheet(&sheetWg, size, imageList, outputDir, basename, padding)
 	}
+	sheetWg.Wait()
 }
 
 func main() {
+	// TODO: Store in options object
 	// Register and parse command flags
 	inputDir := flag.String("in", "images", "Input directory path")
 	outputDir := flag.String("out", "images_out", "Output directory path")
@@ -104,7 +117,7 @@ func main() {
 	images := loadImages(*inputDir)
 
 	// Write output images, one for each size
-	saveImages(images, *outputDir, *basename, *padding)
+	saveSpriteSheets(images, *outputDir, *basename, *padding)
 
 	// Write output metadata in json (TODO: figure out pixi.js compatibility)
 }
