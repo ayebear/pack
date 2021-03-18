@@ -14,6 +14,8 @@ import (
 	"sync"
 )
 
+const OUT_DIR_PERMISSIONS = 0755
+
 type ImageMap map[image.Point][]image.Image
 type ImageChannel chan image.Image
 
@@ -92,8 +94,7 @@ func saveSpriteSheet(sheetWg *sync.WaitGroup, size image.Point, imageList []imag
 
 func saveSpriteSheets(images ImageMap, outputDir string, basename string, padding int) {
 	// Make sure output directory exists
-	// TODO: Magic number
-	os.MkdirAll(outputDir, 0755)
+	os.MkdirAll(outputDir, OUT_DIR_PERMISSIONS)
 
 	// Save sheets in parallel
 	var sheetWg sync.WaitGroup
