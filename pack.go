@@ -11,13 +11,19 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"sort"
 	"sync"
 )
 
 const OUT_DIR_PERMISSIONS = 0755
 
-type ImageMap map[image.Point][]image.Image
-type ImageChannel chan image.Image
+type ImageWithPath struct {
+	image image.Image
+	path  string
+}
+type ImageMap map[image.Point][]ImageWithPath
+type ImageChannel chan ImageWithPath
+type byImagePath []ImageWithPath
 
 type Options struct {
 	inputDir  string
@@ -32,13 +38,13 @@ func check(e error) {
 	}
 }
 
-func loadImage(filePath string) image.Image {
+func loadImage(filePath string) ImageWithPath {
 	f, err := os.Open(filePath)
 	check(err)
 	defer f.Close()
 	img, _, err := image.Decode(f)
 	check(err)
-	return img
+	return ImageWithPath{img, filePath}
 }
 
 func saveImage(filePath string, img image.Image) {
@@ -48,6 +54,17 @@ func saveImage(filePath string, img image.Image) {
 	check(err)
 	err = f.Close()
 	check(err)
+}
+
+// For sorting images by path
+func (s byImagePath) Len() int {
+	return len(s)
+}
+func (s byImagePath) Swap(i, j int) {
+	s[i], s[j] = s[j], s[i]
+}
+func (s byImagePath) Less(i, j int) bool {
+	return s[i].path < s[j].path
 }
 
 func loadImages(inputDir string) ImageMap {
@@ -73,14 +90,17 @@ func loadImages(inputDir string) ImageMap {
 	images := make(ImageMap)
 	for i := 0; i < n; i++ {
 		img := <-imageChannel
-		key := img.Bounds().Max
+		key := img.image.Bounds().Max
 		images[key] = append(images[key], img)
 	}
 	return images
 }
 
-func saveSpriteSheet(sheetWg *sync.WaitGroup, size image.Point, imageList []image.Image, options Options) {
+func saveSpriteSheet(sheetWg *sync.WaitGroup, size image.Point, imageList []ImageWithPath, options Options) {
 	defer sheetWg.Done()
+
+	// Sort image list by filename for deterministic output
+	sort.Sort(byImagePath(imageList))
 
 	// Create initial output image
 	width := int(math.Ceil(math.Sqrt(float64(len(imageList)))))
@@ -91,7 +111,7 @@ func saveSpriteSheet(sheetWg *sync.WaitGroup, size image.Point, imageList []imag
 	for i, img := range imageList {
 		x, y := i%width, i/width
 		target := image.Rect(x*size.X, y*size.Y, x*size.X+size.X, y*size.Y+size.Y)
-		draw.Draw(outImage, target, img, image.Point{0, 0}, draw.Src)
+		draw.Draw(outImage, target, img.image, image.Point{0, 0}, draw.Src)
 	}
 
 	// Save output image
