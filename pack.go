@@ -65,7 +65,10 @@ func loadImage(path string) ImageDetails {
 	check(err)
 	defer f.Close()
 	img, _, err := image.Decode(f)
-	check(err)
+	if err != nil {
+		fmt.Println(path, "could not be decoded.")
+		panic(err)
+	}
 	// Get base name without extension for use as sprite key
 	basename := filepath.Base(path)
 	name := strings.TrimSuffix(basename, filepath.Ext(basename))
