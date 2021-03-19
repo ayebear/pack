@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"image"
@@ -12,18 +13,27 @@ import (
 	"path"
 	"path/filepath"
 	"sort"
-	"sync"
 )
 
 const OUT_DIR_PERMISSIONS = 0755
 
-type ImageWithPath struct {
+type Size struct {
+	W int `json:"w"`
+	H int `json:"h"`
+}
+type Position struct {
+	X int `json:"x"`
+	Y int `json:"y"`
+}
+
+type ImageDetails struct {
 	image image.Image
 	path  string
+	name  string
 }
-type ImageMap map[image.Point][]ImageWithPath
-type ImageChannel chan ImageWithPath
-type byImagePath []ImageWithPath
+type ImageMap map[Size][]ImageDetails
+type ImageChannel chan ImageDetails
+type byImagePath []ImageDetails
 
 type Options struct {
 	inputDir  string
@@ -32,28 +42,57 @@ type Options struct {
 	padding   int
 }
 
+type MetaSheet struct {
+	SheetSize  Size                `json:"sheetSize"`
+	SpriteSize Size                `json:"spriteSize"`
+	Sprites    map[string]Position `json:"sprites"`
+}
+type MetaRoot map[string]MetaSheet
+type SpriteSheet struct {
+	metaSheet MetaSheet
+	sheetName string
+}
+
 func check(e error) {
 	if e != nil {
 		panic(e)
 	}
 }
 
-func loadImage(filePath string) ImageWithPath {
-	f, err := os.Open(filePath)
+func loadImage(path string) ImageDetails {
+	f, err := os.Open(path)
 	check(err)
 	defer f.Close()
 	img, _, err := image.Decode(f)
 	check(err)
-	return ImageWithPath{img, filePath}
+	// TODO: Trim suffix
+	name := filepath.Base(path)
+	return ImageDetails{img, path, name}
 }
 
-func saveImage(filePath string, img image.Image) {
-	f, err := os.Create(filePath)
+func saveImage(path string, img image.Image) {
+	f, err := os.Create(path)
 	check(err)
 	err = png.Encode(f, img)
 	check(err)
 	err = f.Close()
 	check(err)
+}
+
+func writeBytesToFile(data []byte, path string) {
+	f, err := os.Create(path)
+	check(err)
+	_, err = f.Write(data)
+	check(err)
+	err = f.Close()
+	check(err)
+}
+
+func saveMetadata(metadata MetaRoot, options Options) {
+	data, err := json.Marshal(metadata)
+	check(err)
+	jsonPath := path.Join(options.outputDir, fmt.Sprintf("%s.json", options.basename))
+	writeBytesToFile(data, jsonPath)
 }
 
 // For sorting images by path
@@ -90,46 +129,64 @@ func loadImages(inputDir string) ImageMap {
 	images := make(ImageMap)
 	for i := 0; i < n; i++ {
 		img := <-imageChannel
-		key := img.image.Bounds().Max
+		size := img.image.Bounds().Max
+		key := Size{size.X, size.Y}
 		images[key] = append(images[key], img)
 	}
 	return images
 }
 
-func saveSpriteSheet(sheetWg *sync.WaitGroup, size image.Point, imageList []ImageWithPath, options Options) {
-	defer sheetWg.Done()
-
+func saveSpriteSheet(sheetChannel chan SpriteSheet, size Size, imageList []ImageDetails, options Options) {
 	// Sort image list by filename for deterministic output
 	sort.Sort(byImagePath(imageList))
 
 	// Create initial output image
+	// TODO: Try to shrink vertical size if there would be unneeded space
 	width := int(math.Ceil(math.Sqrt(float64(len(imageList)))))
-	outSize := image.Rect(0, 0, width*size.X, width*size.Y)
-	outImage := image.NewRGBA(outSize)
+	sheetSize := Size{width * size.W, width * size.H}
+	outImage := image.NewRGBA(image.Rect(0, 0, sheetSize.W, sheetSize.H))
+
+	// Setup metadata for this sheet
+	metaSheet := MetaSheet{Size{size.W, size.H}, sheetSize, make(map[string]Position)}
 
 	// Copy all images to correct locations in output
 	for i, img := range imageList {
 		x, y := i%width, i/width
-		target := image.Rect(x*size.X, y*size.Y, x*size.X+size.X, y*size.Y+size.Y)
+		pos := Position{x * size.W, y * size.H}
+		target := image.Rect(pos.X, pos.Y, pos.X+size.W, pos.Y+size.H)
 		draw.Draw(outImage, target, img.image, image.Point{0, 0}, draw.Src)
+
+		// Store sprite metadata
+		metaSheet.Sprites[img.name] = pos
 	}
 
 	// Save output image
-	outPath := path.Join(options.outputDir, fmt.Sprintf("%s_%dx%d.png", options.basename, size.X, size.Y))
+	sheetName := fmt.Sprintf("%s_%dx%d.png", options.basename, size.W, size.H)
+	outPath := path.Join(options.outputDir, sheetName)
 	saveImage(outPath, outImage)
+
+	// Output metadata
+	sheetChannel <- SpriteSheet{metaSheet, sheetName}
 }
 
-func saveSpriteSheets(images ImageMap, options Options) {
+func saveSpriteSheets(images ImageMap, options Options) MetaRoot {
 	// Make sure output directory exists
 	os.MkdirAll(options.outputDir, OUT_DIR_PERMISSIONS)
 
 	// Save sheets in parallel
-	sheetWg := sync.WaitGroup{}
-	sheetWg.Add(len(images))
+	n := len(images)
+	sheetChannel := make(chan SpriteSheet, n)
 	for size, imageList := range images {
-		go saveSpriteSheet(&sheetWg, size, imageList, options)
+		go saveSpriteSheet(sheetChannel, size, imageList, options)
 	}
-	sheetWg.Wait()
+
+	// Store sheet metadata into main metadata
+	metadata := MetaRoot{}
+	for i := 0; i < n; i++ {
+		spriteSheet := <-sheetChannel
+		metadata[spriteSheet.sheetName] = spriteSheet.metaSheet
+	}
+	return metadata
 }
 
 func main() {
@@ -145,7 +202,8 @@ func main() {
 	images := loadImages(options.inputDir)
 
 	// Write output images, one for each size
-	saveSpriteSheets(images, options)
+	metadata := saveSpriteSheets(images, options)
 
-	// Write output metadata in json (TODO: figure out pixi.js compatibility)
+	// Write output metadata in json
+	saveMetadata(metadata, options)
 }
