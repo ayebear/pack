@@ -1,17 +1,22 @@
 {
-  "name": "@ayebear/pack",
+  "name": "pack",
   "version": "1.0.0",
-  "private": false,
   "description": "Simple, multi-threaded texture packer in Go",
-  "bin": "./pack",
-  "repository": "git@github.com:ayebear/pack.git",
-  "homepage": "https://github.com/ayebear/pack#readme",
-  "author": "Eric Hebert <ayebear@gmail.com>",
-  "license": "MIT",
+  "main": "index.js",
   "scripts": {
     "postinstall": "go build"
   },
-  "publishConfig": {
-    "access": "public"
-  }
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ayebear/pack.git"
+  },
+  "keywords": [
+    "golang"
+  ],
+  "author": "Eric Hebert",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/ayebear/pack/issues"
+  },
+  "homepage": "https://github.com/ayebear/pack#readme"
 }
