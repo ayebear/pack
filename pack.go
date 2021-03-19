@@ -13,6 +13,7 @@ import (
 	"path"
 	"path/filepath"
 	"sort"
+	"strings"
 )
 
 const OUT_DIR_PERMISSIONS = 0755
@@ -65,8 +66,9 @@ func loadImage(path string) ImageDetails {
 	defer f.Close()
 	img, _, err := image.Decode(f)
 	check(err)
-	// TODO: Trim suffix
-	name := filepath.Base(path)
+	// Get base name without extension for use as sprite key
+	basename := filepath.Base(path)
+	name := strings.TrimSuffix(basename, filepath.Ext(basename))
 	return ImageDetails{img, path, name}
 }
 
@@ -183,8 +185,8 @@ func saveSpriteSheets(images ImageMap, options Options) MetaRoot {
 	// Store sheet metadata into main metadata
 	metadata := MetaRoot{}
 	for i := 0; i < n; i++ {
-		spriteSheet := <-sheetChannel
-		metadata[spriteSheet.sheetName] = spriteSheet.metaSheet
+		sheet := <-sheetChannel
+		metadata[sheet.sheetName] = sheet.metaSheet
 	}
 	return metadata
 }
