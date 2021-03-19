@@ -7,7 +7,7 @@
     "postinstall": "go build"
   },
   "bin": {
-    "pack": "./pack"
+    "pack": "./pack.js"
   },
   "repository": {
     "type": "git",
