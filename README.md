@@ -7,7 +7,7 @@ Simple, multi-threaded texture packer in Go
 ### Build
 
 ```bash
-go build pack.go
+go build
 ```
 
 ### Run

@@ -5,7 +5,7 @@
   "description": "Simple, multi-threaded texture packer in Go",
   "bin": "./pack",
   "repository": "git@github.com:ayebear/pack.git",
-  "homepage": "https://github.com/ayebear/pack",
+  "homepage": "https://github.com/ayebear/pack#readme",
   "author": "Eric Hebert <ayebear@gmail.com>",
   "license": "MIT",
   "scripts": {
