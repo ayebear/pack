@@ -1,6 +1,6 @@
 {
   "name": "@ayebear/pack",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Simple, multi-threaded texture packer in Go",
   "main": "pack.go",
   "scripts": {
