@@ -1,9 +1,10 @@
 {
-  "name": "pack",
+  "name": "@ayebear/pack",
   "version": "1.0.0",
   "description": "Simple, multi-threaded texture packer in Go",
   "bin": "./pack",
   "repository": "git@github.com:ayebear/pack.git",
+  "homepage": "https://github.com/ayebear/pack",
   "author": "Eric Hebert <ayebear@gmail.com>",
   "license": "MIT",
   "scripts": {
