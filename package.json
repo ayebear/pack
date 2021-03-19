@@ -18,5 +18,9 @@
   "bugs": {
     "url": "https://github.com/ayebear/pack/issues"
   },
-  "homepage": "https://github.com/ayebear/pack#readme"
+  "homepage": "https://github.com/ayebear/pack#readme",
+  "private": false,
+  "publishConfig": {
+    "access": "public"
+  }
 }
