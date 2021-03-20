@@ -41,7 +41,7 @@ type Options struct {
 	outputDir string
 	baseName  string
 	basePath  string
-	padding   int
+	// padding   int
 }
 
 type MetaSheet struct {
@@ -210,7 +210,7 @@ func main() {
 	flag.StringVar(&options.outputDir, "out", "images_out", "Output directory path for sheets and json")
 	flag.StringVar(&options.baseName, "name", "textures", "Base filename to use for output filenames")
 	flag.StringVar(&options.basePath, "path", "", "Base directory path to prepend to json metadata keys (leave empty for no parent directory in json sheet keys)")
-	flag.IntVar(&options.padding, "padding", 8, "Number of pixels to repeat around sprite edges (0 to disable)")
+	// flag.IntVar(&options.padding, "padding", 8, "Number of pixels to repeat around sprite edges (0 to disable)")
 	flag.Parse()
 
 	// Load images into map grouped by size
