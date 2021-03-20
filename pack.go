@@ -156,6 +156,10 @@ func saveSpriteSheet(sheetChannel chan SpriteSheet, size Size, imageList []Image
 
 	// Copy all images to correct locations in output
 	for i, img := range imageList {
+		// TODO: Move to separate func, mt with go
+		// For every pixel in the output, map to a position in input
+		// Use a simple clipping alg where top-left is shifted by (padding, padding)
+		// Clip to either corner or edge when out of bounds
 		x, y := i%width, i/width
 		pos := Position{x * size.W, y * size.H}
 		target := image.Rect(pos.X, pos.Y, pos.X+size.W, pos.Y+size.H)
