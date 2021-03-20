@@ -40,7 +40,7 @@ function packToPixi(data, image) {
 }
 
 // Pixi.js resource-loader middleware, tested with v4.8.7
-export function packLoader(resource, next) {
+export async function packLoader(resource, next) {
 	if (
 		!resource.data ||
 		resource.type !== Resource.TYPE.JSON ||
@@ -56,24 +56,33 @@ export function packLoader(resource, next) {
 	}
 
 	// Load each sprite sheet as a resource
-	for (const key in resource.data) {
-		const metaSheet = resource.data[key]
-		const pixiSheet = packToPixi(metaSheet, key)
-		this.add(`${key}_image`, key, loadOptions, res => {
-			if (res.error) {
-				next(res.error)
-				return
-			}
-			const spritesheet = new Spritesheet(
-				res.texture.baseTexture,
-				pixiSheet,
-				resource.url
-			)
-			spritesheet.parse(() => {
-				resource.spritesheet = spritesheet
-				resource.textures = spritesheet.textures
-				next()
+	try {
+		await Promise.all(
+			Object.keys(resource.data).map(async key => {
+				return new Promise((resolve, reject) => {
+					const metaSheet = resource.data[key]
+					const pixiSheet = packToPixi(metaSheet, key)
+					this.add(`${key}_image`, key, loadOptions, res => {
+						if (res.error) {
+							reject(res.error)
+							return
+						}
+						const spritesheet = new Spritesheet(
+							res.texture.baseTexture,
+							pixiSheet,
+							resource.url
+						)
+						spritesheet.parse(() => {
+							resource.spritesheet = spritesheet
+							resource.textures = spritesheet.textures
+							resolve()
+						})
+					})
+				})
 			})
-		})
+		)
+	} catch (error) {
+		next(error)
 	}
+	next()
 }
