@@ -39,7 +39,8 @@ type byImagePath []ImageDetails
 type Options struct {
 	inputDir  string
 	outputDir string
-	basename  string
+	baseName  string
+	basePath  string
 	padding   int
 }
 
@@ -70,8 +71,8 @@ func loadImage(path string) ImageDetails {
 		panic(err)
 	}
 	// Get base name without extension for use as sprite key
-	basename := filepath.Base(path)
-	name := strings.TrimSuffix(basename, filepath.Ext(basename))
+	baseName := filepath.Base(path)
+	name := strings.TrimSuffix(baseName, filepath.Ext(baseName))
 	return ImageDetails{img, path, name}
 }
 
@@ -96,7 +97,7 @@ func writeBytesToFile(data []byte, path string) {
 func saveMetadata(metadata MetaRoot, options Options) {
 	data, err := json.Marshal(metadata)
 	check(err)
-	jsonPath := path.Join(options.outputDir, fmt.Sprintf("%s.json", options.basename))
+	jsonPath := path.Join(options.outputDir, fmt.Sprintf("%s.json", options.baseName))
 	writeBytesToFile(data, jsonPath)
 }
 
@@ -170,12 +171,16 @@ func saveSpriteSheet(sheetChannel chan SpriteSheet, size Size, imageList []Image
 	}
 
 	// Save output image
-	sheetName := fmt.Sprintf("%s_%dx%d.png", options.basename, size.W, size.H)
-	outPath := path.Join(options.outputDir, sheetName)
+	sheetFilename := fmt.Sprintf("%s_%dx%d.png", options.baseName, size.W, size.H)
+	outPath := path.Join(options.outputDir, sheetFilename)
 	saveImage(outPath, outImage)
 
-	// Output metadata
-	sheetChannel <- SpriteSheet{metaSheet, outPath}
+	// Output key and metadata for sprite sheet
+	sheetKey := sheetFilename
+	if options.basePath != "" {
+		sheetKey = path.Join(options.basePath, sheetFilename)
+	}
+	sheetChannel <- SpriteSheet{metaSheet, sheetKey}
 }
 
 func saveSpriteSheets(images ImageMap, options Options) MetaRoot {
@@ -201,9 +206,10 @@ func saveSpriteSheets(images ImageMap, options Options) MetaRoot {
 func main() {
 	// Register and parse command flags
 	options := Options{}
-	flag.StringVar(&options.inputDir, "in", "images", "Input directory path")
-	flag.StringVar(&options.outputDir, "out", "images_out", "Output directory path")
-	flag.StringVar(&options.basename, "name", "textures", "Basename to use for output filenames")
+	flag.StringVar(&options.inputDir, "in", "images", "Input directory path containing individual sprites")
+	flag.StringVar(&options.outputDir, "out", "images_out", "Output directory path for sheets and json")
+	flag.StringVar(&options.baseName, "name", "textures", "Base filename to use for output filenames")
+	flag.StringVar(&options.basePath, "path", "", "Base directory path to prepend to json metadata keys (leave empty for no parent directory in json sheet keys)")
 	flag.IntVar(&options.padding, "padding", 8, "Number of pixels to repeat around sprite edges (0 to disable)")
 	flag.Parse()
 
