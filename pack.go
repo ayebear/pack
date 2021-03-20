@@ -51,7 +51,7 @@ type MetaSheet struct {
 type MetaRoot map[string]MetaSheet
 type SpriteSheet struct {
 	metaSheet MetaSheet
-	sheetName string
+	sheetKey  string
 }
 
 func check(e error) {
@@ -175,7 +175,7 @@ func saveSpriteSheet(sheetChannel chan SpriteSheet, size Size, imageList []Image
 	saveImage(outPath, outImage)
 
 	// Output metadata
-	sheetChannel <- SpriteSheet{metaSheet, sheetName}
+	sheetChannel <- SpriteSheet{metaSheet, outPath}
 }
 
 func saveSpriteSheets(images ImageMap, options Options) MetaRoot {
@@ -193,7 +193,7 @@ func saveSpriteSheets(images ImageMap, options Options) MetaRoot {
 	metadata := MetaRoot{}
 	for i := 0; i < n; i++ {
 		sheet := <-sheetChannel
-		metadata[sheet.sheetName] = sheet.metaSheet
+		metadata[sheet.sheetKey] = sheet.metaSheet
 	}
 	return metadata
 }
