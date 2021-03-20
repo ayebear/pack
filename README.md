@@ -2,7 +2,7 @@
 
 Simple, multi-threaded texture packer in Go
 
-## Usage
+## Native CLI Usage
 
 ### Build
 
@@ -20,6 +20,46 @@ For info on more flags, run:
 
 ```bash
 ./pack -h
+```
+
+## JS Usage
+
+### Install
+
+#### Yarn
+
+```bash
+yarn add --dev @ayebear/pack
+```
+
+#### NPM
+
+```bash
+npm i -D @ayebear/pack
+```
+
+### Run
+
+#### Run with JS wrapper (slower)
+
+```bash
+yarn run pack -h
+```
+
+#### Run natively (faster)
+
+```bash
+./node_modules/@ayebear/pack/pack -h
+```
+
+### Client usage
+
+Pack
+
+```javascript
+import { packLoader } from '@ayebear/pack'
+
+PIXI.loader.use(packLoader).add('textures', 'images/textures.json').start(...)
 ```
 
 ## About
