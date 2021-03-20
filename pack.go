@@ -152,7 +152,7 @@ func saveSpriteSheet(sheetChannel chan SpriteSheet, size Size, imageList []Image
 	outImage := image.NewRGBA(image.Rect(0, 0, sheetSize.W, sheetSize.H))
 
 	// Setup metadata for this sheet
-	metaSheet := MetaSheet{Size{size.W, size.H}, sheetSize, make(map[string]Position)}
+	metaSheet := MetaSheet{sheetSize, Size{size.W, size.H}, make(map[string]Position)}
 
 	// Copy all images to correct locations in output
 	for i, img := range imageList {
