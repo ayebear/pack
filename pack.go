@@ -5,7 +5,6 @@ import (
 	"flag"
 	"fmt"
 	"image"
-	"image/draw"
 	"image/png"
 	_ "image/png"
 	"math"
@@ -146,18 +145,38 @@ func loadImages(inputDir string) ImageMap {
 	return images
 }
 
+// Keep a value within min/max bounds
+func clip(value int, min int, max int) int {
+	if value < min {
+		return min
+	} else if value > max {
+		return max
+	}
+	return value
+}
+
 func drawSprite(outImage *image.RGBA, spriteChannel chan MetaSprite, i int, width int, padding int, img ImageDetails, size Size) {
 	// Sprite position (not pixel position) in sprite sheet
 	x, y := i%width, i/width
+
 	// Top-left position of inner target
 	pos := Position{padding + x*(size.W+padding), padding + y*(size.H+padding)}
+
 	// Inner target contains actual sprite pixels
 	innerTarget := image.Rect(pos.X, pos.Y, pos.X+size.W, pos.Y+size.H)
+
 	// Outer target contains all repeated padding pixels and sprite pixels
-	// outerTarget := image.Rect(pos.X, pos.Y, pos.X+size.W, pos.Y+size.H)
+	outerTarget := image.Rect(pos.X-padding, pos.Y-padding, pos.X+size.W+padding, pos.Y+size.H+padding)
 
 	// Draw sprite pixels and repeated padding pixels
-	draw.Draw(outImage, innerTarget, img.image, image.Point{0, 0}, draw.Src)
+	for py := outerTarget.Min.Y; py <= outerTarget.Max.Y; py++ {
+		for px := outerTarget.Min.X; px <= outerTarget.Max.X; px++ {
+			// Clip and translate from sprite sheet coords to this sprite's coords
+			sourceX := clip(px, innerTarget.Min.X, innerTarget.Max.X) - innerTarget.Min.X
+			sourceY := clip(py, innerTarget.Min.Y, innerTarget.Max.Y) - innerTarget.Min.Y
+			outImage.Set(px, py, img.image.At(sourceX, sourceY))
+		}
+	}
 
 	// Send sprite name and pos to channel
 	spriteChannel <- MetaSprite{img.name, pos}
