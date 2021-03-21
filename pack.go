@@ -160,7 +160,7 @@ func drawSprite(outImage *image.RGBA, spriteChannel chan MetaSprite, i int, widt
 	x, y := i%width, i/width
 
 	// Top-left position of inner target
-	pos := Position{padding + x*(size.W+padding), padding + y*(size.H+padding)}
+	pos := Position{padding + x*(size.W+padding*2), padding + y*(size.H+padding*2)}
 
 	// Inner target contains actual sprite pixels
 	innerTarget := image.Rect(pos.X, pos.Y, pos.X+size.W, pos.Y+size.H)
@@ -169,11 +169,11 @@ func drawSprite(outImage *image.RGBA, spriteChannel chan MetaSprite, i int, widt
 	outerTarget := image.Rect(pos.X-padding, pos.Y-padding, pos.X+size.W+padding, pos.Y+size.H+padding)
 
 	// Draw sprite pixels and repeated padding pixels
-	for py := outerTarget.Min.Y; py <= outerTarget.Max.Y; py++ {
-		for px := outerTarget.Min.X; px <= outerTarget.Max.X; px++ {
+	for py := outerTarget.Min.Y; py < outerTarget.Max.Y; py++ {
+		for px := outerTarget.Min.X; px < outerTarget.Max.X; px++ {
 			// Clip and translate from sprite sheet coords to this sprite's coords
-			sourceX := clip(px, innerTarget.Min.X, innerTarget.Max.X) - innerTarget.Min.X
-			sourceY := clip(py, innerTarget.Min.Y, innerTarget.Max.Y) - innerTarget.Min.Y
+			sourceX := clip(px, pos.X, innerTarget.Max.X-1) - pos.X
+			sourceY := clip(py, pos.Y, innerTarget.Max.Y-1) - pos.Y
 			outImage.Set(px, py, img.image.At(sourceX, sourceY))
 		}
 	}
@@ -191,7 +191,7 @@ func saveSpriteSheet(sheetChannel chan SpriteSheet, size Size, imageList []Image
 	padding := options.padding
 	imageCount := len(imageList)
 	width := int(math.Ceil(math.Sqrt(float64(imageCount))))
-	sheetSize := Size{width*size.W + padding*(width+1), width*size.H + padding*(width+1)}
+	sheetSize := Size{width*size.W + width*padding*2, width*size.H + width*padding*2}
 	outImage := image.NewRGBA(image.Rect(0, 0, sheetSize.W, sheetSize.H))
 
 	// Setup metadata for this sheet
