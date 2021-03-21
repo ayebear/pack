@@ -41,7 +41,7 @@ type Options struct {
 	outputDir string
 	baseName  string
 	basePath  string
-	// padding   int
+	padding   int
 }
 
 type MetaSheet struct {
@@ -53,6 +53,10 @@ type MetaRoot map[string]MetaSheet
 type SpriteSheet struct {
 	metaSheet MetaSheet
 	sheetKey  string
+}
+type MetaSprite struct {
+	name string
+	pos  Position
 }
 
 func check(e error) {
@@ -142,32 +146,48 @@ func loadImages(inputDir string) ImageMap {
 	return images
 }
 
+func drawSprite(outImage *image.RGBA, spriteChannel chan MetaSprite, i int, width int, padding int, img ImageDetails, size Size) {
+	// Sprite position (not pixel position) in sprite sheet
+	x, y := i%width, i/width
+	// Top-left position of inner target
+	pos := Position{padding + x*(size.W+padding), padding + y*(size.H+padding)}
+	// Inner target contains actual sprite pixels
+	innerTarget := image.Rect(pos.X, pos.Y, pos.X+size.W, pos.Y+size.H)
+	// Outer target contains all repeated padding pixels and sprite pixels
+	// outerTarget := image.Rect(pos.X, pos.Y, pos.X+size.W, pos.Y+size.H)
+
+	// Draw sprite pixels and repeated padding pixels
+	draw.Draw(outImage, innerTarget, img.image, image.Point{0, 0}, draw.Src)
+
+	// Send sprite name and pos to channel
+	spriteChannel <- MetaSprite{img.name, pos}
+}
+
 func saveSpriteSheet(sheetChannel chan SpriteSheet, size Size, imageList []ImageDetails, options Options) {
 	// Sort image list by filename for deterministic output
 	sort.Sort(byImagePath(imageList))
 
 	// Create initial output image
 	// TODO: Try to shrink vertical size if there would be unneeded space
-	width := int(math.Ceil(math.Sqrt(float64(len(imageList)))))
-	sheetSize := Size{width * size.W, width * size.H}
+	padding := options.padding
+	imageCount := len(imageList)
+	width := int(math.Ceil(math.Sqrt(float64(imageCount))))
+	sheetSize := Size{width*size.W + padding*(width+1), width*size.H + padding*(width+1)}
 	outImage := image.NewRGBA(image.Rect(0, 0, sheetSize.W, sheetSize.H))
 
 	// Setup metadata for this sheet
 	metaSheet := MetaSheet{sheetSize, Size{size.W, size.H}, make(map[string]Position)}
 
 	// Copy all images to correct locations in output
+	spriteChannel := make(chan MetaSprite)
 	for i, img := range imageList {
-		// TODO: Move to separate func, mt with go
-		// For every pixel in the output, map to a position in input
-		// Use a simple clipping alg where top-left is shifted by (padding, padding)
-		// Clip to either corner or edge when out of bounds
-		x, y := i%width, i/width
-		pos := Position{x * size.W, y * size.H}
-		target := image.Rect(pos.X, pos.Y, pos.X+size.W, pos.Y+size.H)
-		draw.Draw(outImage, target, img.image, image.Point{0, 0}, draw.Src)
+		go drawSprite(outImage, spriteChannel, i, width, padding, img, size)
+	}
 
-		// Store sprite metadata
-		metaSheet.Sprites[img.name] = pos
+	// Store sprite position metadata and wait for sprite threads to finish
+	for i := 0; i < imageCount; i++ {
+		spriteMeta := <-spriteChannel
+		metaSheet.Sprites[spriteMeta.name] = spriteMeta.pos
 	}
 
 	// Save output image
@@ -210,7 +230,7 @@ func main() {
 	flag.StringVar(&options.outputDir, "out", "images_out", "Output directory path for sheets and json")
 	flag.StringVar(&options.baseName, "name", "textures", "Base filename to use for output filenames")
 	flag.StringVar(&options.basePath, "path", "", "Base directory path to prepend to json metadata keys (leave empty for no parent directory in json sheet keys)")
-	// flag.IntVar(&options.padding, "padding", 8, "Number of pixels to repeat around sprite edges (0 to disable)")
+	flag.IntVar(&options.padding, "padding", 8, "Number of pixels to repeat around sprite edges (0 to disable)")
 	flag.Parse()
 
 	// Load images into map grouped by size
