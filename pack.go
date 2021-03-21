@@ -5,7 +5,6 @@ import (
 	"flag"
 	"fmt"
 	"image"
-	"image/draw"
 	"image/png"
 	_ "image/png"
 	"math"
@@ -39,7 +38,8 @@ type byImagePath []ImageDetails
 type Options struct {
 	inputDir  string
 	outputDir string
-	basename  string
+	baseName  string
+	basePath  string
 	padding   int
 }
 
@@ -51,7 +51,11 @@ type MetaSheet struct {
 type MetaRoot map[string]MetaSheet
 type SpriteSheet struct {
 	metaSheet MetaSheet
-	sheetName string
+	sheetKey  string
+}
+type MetaSprite struct {
+	name string
+	pos  Position
 }
 
 func check(e error) {
@@ -70,8 +74,8 @@ func loadImage(path string) ImageDetails {
 		panic(err)
 	}
 	// Get base name without extension for use as sprite key
-	basename := filepath.Base(path)
-	name := strings.TrimSuffix(basename, filepath.Ext(basename))
+	baseName := filepath.Base(path)
+	name := strings.TrimSuffix(baseName, filepath.Ext(baseName))
 	return ImageDetails{img, path, name}
 }
 
@@ -96,7 +100,7 @@ func writeBytesToFile(data []byte, path string) {
 func saveMetadata(metadata MetaRoot, options Options) {
 	data, err := json.Marshal(metadata)
 	check(err)
-	jsonPath := path.Join(options.outputDir, fmt.Sprintf("%s.json", options.basename))
+	jsonPath := path.Join(options.outputDir, fmt.Sprintf("%s.json", options.baseName))
 	writeBytesToFile(data, jsonPath)
 }
 
@@ -141,37 +145,81 @@ func loadImages(inputDir string) ImageMap {
 	return images
 }
 
+// Keep a value within min/max bounds
+func clip(value int, min int, max int) int {
+	if value < min {
+		return min
+	} else if value > max {
+		return max
+	}
+	return value
+}
+
+func drawSprite(outImage *image.RGBA, spriteChannel chan MetaSprite, i int, width int, padding int, img ImageDetails, size Size) {
+	// Sprite position (not pixel position) in sprite sheet
+	x, y := i%width, i/width
+
+	// Top-left position of inner target
+	pos := Position{padding + x*(size.W+padding*2), padding + y*(size.H+padding*2)}
+
+	// Inner target contains actual sprite pixels
+	innerTarget := image.Rect(pos.X, pos.Y, pos.X+size.W, pos.Y+size.H)
+
+	// Outer target contains all repeated padding pixels and sprite pixels
+	outerTarget := image.Rect(pos.X-padding, pos.Y-padding, pos.X+size.W+padding, pos.Y+size.H+padding)
+
+	// Draw sprite pixels and repeated padding pixels
+	for py := outerTarget.Min.Y; py < outerTarget.Max.Y; py++ {
+		for px := outerTarget.Min.X; px < outerTarget.Max.X; px++ {
+			// Clip and translate from sprite sheet coords to this sprite's coords
+			sourceX := clip(px, pos.X, innerTarget.Max.X-1) - pos.X
+			sourceY := clip(py, pos.Y, innerTarget.Max.Y-1) - pos.Y
+			outImage.Set(px, py, img.image.At(sourceX, sourceY))
+		}
+	}
+
+	// Send sprite name and pos to channel
+	spriteChannel <- MetaSprite{img.name, pos}
+}
+
 func saveSpriteSheet(sheetChannel chan SpriteSheet, size Size, imageList []ImageDetails, options Options) {
 	// Sort image list by filename for deterministic output
 	sort.Sort(byImagePath(imageList))
 
 	// Create initial output image
 	// TODO: Try to shrink vertical size if there would be unneeded space
-	width := int(math.Ceil(math.Sqrt(float64(len(imageList)))))
-	sheetSize := Size{width * size.W, width * size.H}
+	padding := options.padding
+	imageCount := len(imageList)
+	width := int(math.Ceil(math.Sqrt(float64(imageCount))))
+	sheetSize := Size{width*size.W + width*padding*2, width*size.H + width*padding*2}
 	outImage := image.NewRGBA(image.Rect(0, 0, sheetSize.W, sheetSize.H))
 
 	// Setup metadata for this sheet
-	metaSheet := MetaSheet{Size{size.W, size.H}, sheetSize, make(map[string]Position)}
+	metaSheet := MetaSheet{sheetSize, Size{size.W, size.H}, make(map[string]Position)}
 
 	// Copy all images to correct locations in output
+	spriteChannel := make(chan MetaSprite)
 	for i, img := range imageList {
-		x, y := i%width, i/width
-		pos := Position{x * size.W, y * size.H}
-		target := image.Rect(pos.X, pos.Y, pos.X+size.W, pos.Y+size.H)
-		draw.Draw(outImage, target, img.image, image.Point{0, 0}, draw.Src)
+		go drawSprite(outImage, spriteChannel, i, width, padding, img, size)
+	}
 
-		// Store sprite metadata
-		metaSheet.Sprites[img.name] = pos
+	// Store sprite position metadata and wait for sprite threads to finish
+	for i := 0; i < imageCount; i++ {
+		spriteMeta := <-spriteChannel
+		metaSheet.Sprites[spriteMeta.name] = spriteMeta.pos
 	}
 
 	// Save output image
-	sheetName := fmt.Sprintf("%s_%dx%d.png", options.basename, size.W, size.H)
-	outPath := path.Join(options.outputDir, sheetName)
+	sheetFilename := fmt.Sprintf("%s_%dx%d.png", options.baseName, size.W, size.H)
+	outPath := path.Join(options.outputDir, sheetFilename)
 	saveImage(outPath, outImage)
 
-	// Output metadata
-	sheetChannel <- SpriteSheet{metaSheet, sheetName}
+	// Output key and metadata for sprite sheet
+	sheetKey := sheetFilename
+	if options.basePath != "" {
+		sheetKey = path.Join(options.basePath, sheetFilename)
+	}
+	sheetChannel <- SpriteSheet{metaSheet, sheetKey}
 }
 
 func saveSpriteSheets(images ImageMap, options Options) MetaRoot {
@@ -189,7 +237,7 @@ func saveSpriteSheets(images ImageMap, options Options) MetaRoot {
 	metadata := MetaRoot{}
 	for i := 0; i < n; i++ {
 		sheet := <-sheetChannel
-		metadata[sheet.sheetName] = sheet.metaSheet
+		metadata[sheet.sheetKey] = sheet.metaSheet
 	}
 	return metadata
 }
@@ -197,9 +245,10 @@ func saveSpriteSheets(images ImageMap, options Options) MetaRoot {
 func main() {
 	// Register and parse command flags
 	options := Options{}
-	flag.StringVar(&options.inputDir, "in", "images", "Input directory path")
-	flag.StringVar(&options.outputDir, "out", "images_out", "Output directory path")
-	flag.StringVar(&options.basename, "name", "textures", "Basename to use for output filenames")
+	flag.StringVar(&options.inputDir, "in", "images", "Input directory path containing individual sprites")
+	flag.StringVar(&options.outputDir, "out", "images_out", "Output directory path for sheets and json")
+	flag.StringVar(&options.baseName, "name", "textures", "Base filename to use for output filenames")
+	flag.StringVar(&options.basePath, "path", "", "Base directory path to prepend to json metadata keys (leave empty for no parent directory in json sheet keys)")
 	flag.IntVar(&options.padding, "padding", 8, "Number of pixels to repeat around sprite edges (0 to disable)")
 	flag.Parse()
 
