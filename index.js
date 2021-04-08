@@ -39,7 +39,7 @@ function packToPixi(data, image) {
 	}
 }
 
-// Pixi.js resource-loader middleware, tested with v4.8.7
+// Pixi.js loader plugin, tested with v6
 export class PackSpritesheetLoader {
 	static async use(resource, next) {
 		if (
