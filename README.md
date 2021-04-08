@@ -52,14 +52,16 @@ yarn run pack -h
 ./node_modules/@ayebear/pack/pack -h
 ```
 
-### Client usage
+### Client usage (Pixi.js v6)
 
-Pack outputs a single json file along with multiple png files. Pixi.js (v4) only supports single-image sprite sheets with their json format. Pack comes with middleware you can use that supports pack's json format for multi-image sprite sheets.
+Pack outputs a single json file along with (potentially) multiple png files. A pixi.js plugin is included with pack, to load this json file and all associated images in parallel.
 
 ```javascript
-import { packLoader } from '@ayebear/pack'
+import { Loader } from '@pixi/loaders'
+import { PackSpritesheetLoader } from '@ayebear/pack'
 
-PIXI.loader.use(packLoader).add('textures', 'images/textures.json').start(...)
+Loader.registerPlugin(PackSpritesheetLoader)
+Loader.shared.add('images/textures.json').load(...)
 ```
 
 ## About
