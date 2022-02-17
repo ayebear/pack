@@ -39,7 +39,39 @@ function packToPixi(data, image) {
 	}
 }
 
-// Pixi.js loader plugin, tested with v6
+// Pixi.js v6 loader
+// loader: pixi loader
+// data: parsed textures.json, generated from pack
+// images: glob imported images object, { image_key: image_filename, ... }
+export function loadSheets(loader, data, images) {
+	const imgs = {}
+	for (const key in images) {
+		imgs[`images/${key}.png`] = images[key]
+	}
+	for (const key in data) {
+		const meta = data[key]
+		const image = imgs[key]
+		if (!image) {
+			throw new Error(
+				`Image from spritesheet metadata not found for: ${key}`
+			)
+		}
+		loader.add(`${key}_image`, image, resource => {
+			const pixiSheet = packToPixi(meta, key)
+			const spritesheet = new Spritesheet(
+				resource.texture.baseTexture,
+				pixiSheet
+			)
+			spritesheet.parse(() => {
+				resource.spritesheet = spritesheet
+				resource.textures = spritesheet.textures
+			})
+		})
+	}
+	return loader
+}
+
+// Pixi.js v6 loader plugin
 export class PackSpritesheetLoader {
 	static async use(resource, next) {
 		if (
