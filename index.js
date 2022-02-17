@@ -44,13 +44,9 @@ function packToPixi(data, image) {
 // data: parsed textures.json, generated from pack
 // images: glob imported images object, { image_key: image_filename, ... }
 export function loadSheets(loader, data, images) {
-	const imgs = {}
-	for (const key in images) {
-		imgs[`images/${key}.png`] = images[key]
-	}
 	for (const key in data) {
 		const meta = data[key]
-		const image = imgs[key]
+		const image = images[key]
 		if (!image) {
 			throw new Error(
 				`Image from spritesheet metadata not found for: ${key}`

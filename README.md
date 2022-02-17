@@ -78,7 +78,13 @@ import { loadSheets } from '@ayebear/pack'
 import sheetData from 'sheets/textures.json'
 import * as sheets from 'sheets/*.png'
 
-loadSheets(Loader.shared, sheetData, sheets).load(...)
+// Globbing only gives the "*" part, but we need full path
+// to match up with sheetData keys
+const images = {}
+for (const key in sheets) {
+    images[`sheets/${key}.png`] = sheets[key]
+}
+loadSheets(Loader.shared, sheetData, images).load(...)
 ```
 
 ## About
