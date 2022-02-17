@@ -123,7 +123,8 @@ func loadImages(inputDir string) ImageMap {
 		if err != nil {
 			return err
 		}
-		if info.IsDir() {
+		// Ignore directories and hidden files
+		if info.IsDir() || info.Name()[0] == '.' {
 			return nil
 		}
 		n++
