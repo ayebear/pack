@@ -124,7 +124,8 @@ func loadImages(inputDir string) ImageMap {
 			return err
 		}
 		// Ignore directories and hidden files
-		if info.IsDir() || info.Name()[0] == '.' {
+		name := info.Name()
+		if info.IsDir() || strings.HasPrefix(name, ".") || !strings.HasSuffix(name, ".png") {
 			return nil
 		}
 		n++
@@ -246,7 +247,7 @@ func saveSpriteSheets(images ImageMap, options Options) MetaRoot {
 func main() {
 	// Register and parse command flags
 	options := Options{}
-	flag.StringVar(&options.inputDir, "in", "images", "Input directory path containing individual sprites")
+	flag.StringVar(&options.inputDir, "in", "images", "Input directory path containing individual sprites in png format")
 	flag.StringVar(&options.outputDir, "out", "images_out", "Output directory path for sheets and json")
 	flag.StringVar(&options.baseName, "name", "textures", "Base filename to use for output filenames")
 	flag.StringVar(&options.basePath, "path", "", "Base directory path to prepend to json metadata keys (leave empty for no parent directory in json sheet keys)")
